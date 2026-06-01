@@ -1,0 +1,77 @@
+/* All selectors are scoped to our own classes to avoid collateral damage
+   on PartKom's CSS. */
+
+.autoload-ext-btn {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid #888;
+  border-radius: 3px;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+.autoload-ext-btn:hover {
+  background: #ffe4a1;
+}
+
+.autoload-ext-panel {
+  background: #fff;
+  border: 1px solid #555;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  padding: 8px 10px;
+  font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  color: #222;
+  min-width: 500px;
+  max-width: 900px;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.autoload-ext-header {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.autoload-ext-error {
+  color: #c00;
+}
+
+.autoload-ext-body {
+  white-space: pre-wrap;
+}
+
+.autoload-ext-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 4px;
+}
+.autoload-ext-table th,
+.autoload-ext-table td {
+  border: 1px solid #aaa;
+  padding: 3px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.autoload-ext-table th {
+  background: #eee;
+}
+
+.autoload-ext-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  cursor: pointer;
+  color: #666;
+  padding: 0 4px;
+}
+.autoload-ext-close:hover {
+  color: #000;
+}

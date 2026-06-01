@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Autoload — PartKom quick lookup",
+  "version": "0.1.0",
+  "description": "Injects a 📋 button next to PartKom order numbers (УАК…) on b2b.part-kom.ru and fetches the parts table via the autoload backend.",
+  "permissions": [],
+  "host_permissions": [
+    "https://b2b.part-kom.ru/*",
+    "https://e133.tech/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://b2b.part-kom.ru/*"],
+      "js": ["src/content.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_title": "Autoload — PartKom quick lookup"
+  },
+  "icons": {
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
