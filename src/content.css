@@ -76,24 +76,47 @@
   color: #000;
 }
 
-.autoload-ext-accept-row {
+.autoload-ext-queue-row {
   margin-top: 8px;
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
-.autoload-ext-accept {
+.autoload-ext-add,
+.autoload-ext-submit-all {
   padding: 6px 14px;
-  background: #2c7;
   color: white;
   border: 0;
   border-radius: 3px;
   cursor: pointer;
   font-size: 13px;
 }
-.autoload-ext-accept:disabled { background: #888; cursor: default; }
-.autoload-ext-accept:hover:not(:disabled) { background: #1b6; }
-.autoload-ext-accept-status { font-size: 12px; }
-.autoload-ext-accept-ok { color: #060; }
-.autoload-ext-accept-err { color: #b00; }
+.autoload-ext-add { background: #2c7; }
+.autoload-ext-add:hover:not(:disabled) { background: #1b6; }
+.autoload-ext-submit-all { background: #07c; }
+.autoload-ext-submit-all:hover:not(:disabled) { background: #06b; }
+.autoload-ext-add:disabled,
+.autoload-ext-submit-all:disabled { background: #888; cursor: default; }
+
+.autoload-ext-queue-status { font-size: 12px; }
+.autoload-ext-queue-ok { color: #060; }
+.autoload-ext-queue-warn { color: #b58000; }
+.autoload-ext-queue-err { color: #b00; }
+
+.autoload-ext-batch-results {
+  margin-top: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+.autoload-ext-batch-results ul {
+  margin: 4px 0 0 0;
+  padding-left: 20px;
+}
+.autoload-ext-batch-ok { color: #060; }
+.autoload-ext-batch-err { color: #b00; }
+
+.autoload-ext-queue-badge {
+  font-weight: normal;
+  color: #555;
+}

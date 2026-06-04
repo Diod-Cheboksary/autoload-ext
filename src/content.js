@@ -14,7 +14,9 @@
   "use strict";
 
   const API_LOOKUP_BASE = "https://e133.tech/barcode/api/lookup/partkom";
-  const API_ACCEPT_URL = "https://e133.tech/barcode/api/receipts/accept";
+  const API_QUEUE_ADD = "https://e133.tech/barcode/api/receipts/queue";
+  const API_QUEUE_GET = "https://e133.tech/barcode/api/receipts/queue";
+  const API_QUEUE_ACCEPT = "https://e133.tech/barcode/api/receipts/queue/accept";
   // Match "№ УАК55409720" or just "УАК55409720"; capture the digits.
   const UAK_RE = /(?:№\s*)?УАК(\d{6,12})/;
   const MARKER_CLASS = "autoload-ext-marker";
@@ -151,54 +153,105 @@
     table.appendChild(tbody);
     panel.appendChild(table);
 
-    const acceptRow = document.createElement("div");
-    acceptRow.className = "autoload-ext-accept-row";
-    const accept = document.createElement("button");
-    accept.className = "autoload-ext-accept";
-    accept.type = "button";
-    accept.textContent = "Принять в 1С";
-    accept.addEventListener("click", async () => {
-      accept.disabled = true;
-      accept.textContent = "Создаём…";
+    const queueRow = document.createElement("div");
+    queueRow.className = "autoload-ext-queue-row";
+
+    // The PartKom identifier the queue needs: digits without УАК prefix.
+    const partkomId =
+      String(body.realization || "").replace(/^УАК/, "") || digits;
+
+    const add = document.createElement("button");
+    add.className = "autoload-ext-add";
+    add.type = "button";
+    add.textContent = "Добавить в очередь";
+    add.addEventListener("click", async () => {
+      add.disabled = true;
+      add.textContent = "Добавляем…";
       const status = document.createElement("div");
-      status.className = "autoload-ext-accept-status";
-      acceptRow.appendChild(status);
+      status.className = "autoload-ext-queue-status";
+      queueRow.appendChild(status);
       try {
-        const r = await fetch(API_ACCEPT_URL, {
+        const r = await fetch(API_QUEUE_ADD, {
           method: "POST",
           credentials: "omit",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            supplier: "partkom",
-            // body.realization is what the lookup returned (УАК-prefixed
-            // raw orderNumber from PartKom); the backend re-validates.
-            identifier: String(body.realization || "").replace(/^УАК/, "") || digits,
-          }),
+          body: JSON.stringify({ supplier: "partkom", identifier: partkomId }),
         });
         const ok = r.status === 200;
         const data = await r.json().catch(() => ({}));
         if (ok) {
-          status.textContent =
-            `✅ ${data.document_id} → ${data.supplier_name}` +
-            (data.replayed ? " (из кэша)" : "");
-          status.classList.add("autoload-ext-accept-ok");
-          accept.remove();
+          status.textContent = data.added
+            ? "✅ Добавлено в очередь"
+            : "⚠ Уже в очереди";
+          status.classList.add(data.added
+            ? "autoload-ext-queue-ok"
+            : "autoload-ext-queue-warn");
+          add.remove();
+          refreshQueueBadge(panel);
         } else {
           status.textContent =
             `❌ ${data.detail || "ошибка"} (HTTP ${r.status})`;
-          status.classList.add("autoload-ext-accept-err");
-          accept.disabled = false;
-          accept.textContent = "Принять в 1С";
+          status.classList.add("autoload-ext-queue-err");
+          add.disabled = false;
+          add.textContent = "Добавить в очередь";
         }
       } catch (e) {
         status.textContent = `❌ нет связи: ${e instanceof Error ? e.message : e}`;
-        status.classList.add("autoload-ext-accept-err");
-        accept.disabled = false;
-        accept.textContent = "Принять в 1С";
+        status.classList.add("autoload-ext-queue-err");
+        add.disabled = false;
+        add.textContent = "Добавить в очередь";
       }
     });
-    acceptRow.appendChild(accept);
-    panel.appendChild(acceptRow);
+
+    const submitAll = document.createElement("button");
+    submitAll.className = "autoload-ext-submit-all";
+    submitAll.type = "button";
+    submitAll.textContent = "Принять все в 1С";
+    submitAll.addEventListener("click", async () => {
+      submitAll.disabled = true;
+      submitAll.textContent = "Принимаем…";
+      const results = document.createElement("div");
+      results.className = "autoload-ext-batch-results";
+      queueRow.appendChild(results);
+      try {
+        const r = await fetch(API_QUEUE_ACCEPT, {
+          method: "POST", credentials: "omit",
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 200 && data.results) {
+          results.innerHTML =
+            `<div><strong>Результаты:</strong> успешно ${data.succeeded}, ошибок ${data.failed}, осталось ${data.remaining}</div>`;
+          const list = document.createElement("ul");
+          for (const item of data.results) {
+            const li = document.createElement("li");
+            if (item.ok) {
+              li.textContent = `✅ ${item.identifier} → ${item.document_id}`;
+              li.classList.add("autoload-ext-batch-ok");
+            } else {
+              li.textContent = `❌ ${item.identifier}: ${item.error_kind} — ${item.error_detail}`;
+              li.classList.add("autoload-ext-batch-err");
+            }
+            list.appendChild(li);
+          }
+          results.appendChild(list);
+          refreshQueueBadge(panel);
+        } else {
+          results.textContent = `❌ HTTP ${r.status}: ${data.detail || "ошибка"}`;
+          results.classList.add("autoload-ext-queue-err");
+        }
+      } catch (e) {
+        results.textContent = `❌ нет связи: ${e instanceof Error ? e.message : e}`;
+        results.classList.add("autoload-ext-queue-err");
+      } finally {
+        submitAll.disabled = false;
+        submitAll.textContent = "Принять все в 1С";
+      }
+    });
+
+    queueRow.appendChild(add);
+    queueRow.appendChild(submitAll);
+    panel.appendChild(queueRow);
+    refreshQueueBadge(panel);
 
     const close = document.createElement("button");
     close.className = "autoload-ext-close";
@@ -207,6 +260,24 @@
     close.title = "Закрыть";
     close.addEventListener("click", closePanel);
     panel.appendChild(close);
+  }
+
+  /** Fetch current queue count and display it in the panel header. */
+  async function refreshQueueBadge(panel) {
+    try {
+      const r = await fetch(API_QUEUE_GET, { credentials: "omit" });
+      if (!r.ok) return;
+      const data = await r.json();
+      const header = panel.querySelector(".autoload-ext-header");
+      if (!header) return;
+      let badge = header.querySelector(".autoload-ext-queue-badge");
+      if (!badge) {
+        badge = document.createElement("span");
+        badge.className = "autoload-ext-queue-badge";
+        header.appendChild(badge);
+      }
+      badge.textContent = ` | в очереди: ${data.count}`;
+    } catch { /* silent — UI degrades gracefully */ }
   }
 
   function pluralRus(n, forms) {
