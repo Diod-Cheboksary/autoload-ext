@@ -75,3 +75,25 @@
 .autoload-ext-close:hover {
   color: #000;
 }
+
+.autoload-ext-accept-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.autoload-ext-accept {
+  padding: 6px 14px;
+  background: #2c7;
+  color: white;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.autoload-ext-accept:disabled { background: #888; cursor: default; }
+.autoload-ext-accept:hover:not(:disabled) { background: #1b6; }
+.autoload-ext-accept-status { font-size: 12px; }
+.autoload-ext-accept-ok { color: #060; }
+.autoload-ext-accept-err { color: #b00; }

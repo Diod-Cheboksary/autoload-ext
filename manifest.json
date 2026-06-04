@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Autoload — PartKom quick lookup",
-  "version": "0.1.0",
-  "description": "Injects a 📋 button next to PartKom order numbers (УАК…) on b2b.part-kom.ru and fetches the parts table via the autoload backend.",
+  "version": "0.2.0",
+  "description": "Injects a 📋 button next to PartKom order numbers (УАК…) on b2b.part-kom.ru and fetches the parts table via the autoload backend. Includes a 'Принять в 1С' button that books the receipt in УНФ.",
   "permissions": [],
   "host_permissions": [
     "https://b2b.part-kom.ru/*",

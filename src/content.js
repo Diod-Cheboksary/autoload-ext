@@ -13,7 +13,8 @@
 (() => {
   "use strict";
 
-  const API_BASE = "https://e133.tech/barcode/api/lookup/partkom";
+  const API_LOOKUP_BASE = "https://e133.tech/barcode/api/lookup/partkom";
+  const API_ACCEPT_URL = "https://e133.tech/barcode/api/receipts/accept";
   // Match "№ УАК55409720" or just "УАК55409720"; capture the digits.
   const UAK_RE = /(?:№\s*)?УАК(\d{6,12})/;
   const MARKER_CLASS = "autoload-ext-marker";
@@ -150,6 +151,55 @@
     table.appendChild(tbody);
     panel.appendChild(table);
 
+    const acceptRow = document.createElement("div");
+    acceptRow.className = "autoload-ext-accept-row";
+    const accept = document.createElement("button");
+    accept.className = "autoload-ext-accept";
+    accept.type = "button";
+    accept.textContent = "Принять в 1С";
+    accept.addEventListener("click", async () => {
+      accept.disabled = true;
+      accept.textContent = "Создаём…";
+      const status = document.createElement("div");
+      status.className = "autoload-ext-accept-status";
+      acceptRow.appendChild(status);
+      try {
+        const r = await fetch(API_ACCEPT_URL, {
+          method: "POST",
+          credentials: "omit",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            supplier: "partkom",
+            // body.realization is what the lookup returned (УАК-prefixed
+            // raw orderNumber from PartKom); the backend re-validates.
+            identifier: String(body.realization || "").replace(/^УАК/, "") || digits,
+          }),
+        });
+        const ok = r.status === 200;
+        const data = await r.json().catch(() => ({}));
+        if (ok) {
+          status.textContent =
+            `✅ ${data.document_id} → ${data.supplier_name}` +
+            (data.replayed ? " (из кэша)" : "");
+          status.classList.add("autoload-ext-accept-ok");
+          accept.remove();
+        } else {
+          status.textContent =
+            `❌ ${data.detail || "ошибка"} (HTTP ${r.status})`;
+          status.classList.add("autoload-ext-accept-err");
+          accept.disabled = false;
+          accept.textContent = "Принять в 1С";
+        }
+      } catch (e) {
+        status.textContent = `❌ нет связи: ${e instanceof Error ? e.message : e}`;
+        status.classList.add("autoload-ext-accept-err");
+        accept.disabled = false;
+        accept.textContent = "Принять в 1С";
+      }
+    });
+    acceptRow.appendChild(accept);
+    panel.appendChild(acceptRow);
+
     const close = document.createElement("button");
     close.className = "autoload-ext-close";
     close.type = "button";
@@ -177,7 +227,7 @@
 
     // PartKom UI uses 10 digits sometimes (with a 2-digit year prefix). Our
     // backend strips it down to the last 8 anyway, but we send what we see.
-    const url = `${API_BASE}/${encodeURIComponent(digits)}`;
+    const url = `${API_LOOKUP_BASE}/${encodeURIComponent(digits)}`;
 
     try {
       const resp = await fetch(url, { credentials: "omit" });
