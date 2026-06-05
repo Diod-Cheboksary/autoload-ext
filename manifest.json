@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Autoload — PartKom quick lookup",
-  "version": "0.3.0",
-  "description": "Injects a 📋 button next to PartKom order numbers (УАК…) on b2b.part-kom.ru and fetches the parts table via the autoload backend. Includes 'Добавить в очередь' + 'Принять все в 1С' for the collect-then-batch receipt flow shared with the /barcode/ web UI.",
+  "name": "Autoload — quick lookup (PartKom + MParts)",
+  "version": "0.4.0",
+  "description": "Injects a 📋 button next to supplier order numbers (PartKom УАК… on b2b.part-kom.ru, MParts on v01.ru) and fetches the parts table via the autoload backend. Includes 'Добавить в очередь' + 'Принять все в 1С' for the collect-then-batch receipt flow shared with the /barcode/ web UI.",
   "permissions": [],
   "host_permissions": [
     "https://b2b.part-kom.ru/*",
+    "https://v01.ru/*",
     "https://e133.tech/*"
   ],
   "content_scripts": [
@@ -15,10 +16,17 @@
       "css": ["src/content.css"],
       "run_at": "document_idle",
       "all_frames": false
+    },
+    {
+      "matches": ["https://v01.ru/personal/orders*"],
+      "js": ["src/content_v01.js"],
+      "css": ["src/content.css"],
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "action": {
-    "default_title": "Autoload — PartKom quick lookup"
+    "default_title": "Autoload — supplier quick lookup"
   },
   "icons": {
     "16":  "icons/icon16.png",
