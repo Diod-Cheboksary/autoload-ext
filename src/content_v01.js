@@ -22,6 +22,11 @@
   const API_QUEUE_ACCEPT = "https://e133.tech/barcode/api/receipts/queue/accept";
   // Order rows look like <tr rel="order-12345969">. Capture the digits.
   const ORDER_REL_RE = /^order-(\d{6,10})$/;
+  // УПД invoice format on v01.ru paper documents: МПр-YYMMDD-NNNNN. The
+  // extension scrapes it from the data-original-title of the document link
+  // inside each row so the bookkeeper sees the same Вх. номер in 1С as on
+  // the УПД paper (instead of the API's order_number).
+  const INVOICE_RE = /МПр-\d{4,8}-\d{3,8}/;
   const MARKER_CLASS = "autoload-ext-marker";
   const BUTTON_CLASS = "autoload-ext-btn";
   const PANEL_CLASS = "autoload-ext-panel";
@@ -57,9 +62,32 @@
     btn.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      handleClick(btn, orderNumber);
+      handleClick(btn, orderNumber, row);
     });
     anchorCell.appendChild(btn);
+  }
+
+  /** Pull the invoice number (МПр-YYMMDD-NNNNN) out of the row.
+   *  v01.ru places the УПД link in <td class="order_action">; the tooltip
+   *  text (data-original-title or title) carries the human-readable file
+   *  name including the invoice number. Returns null when the row has no
+   *  UPD yet (e.g. order still in transit). */
+  function extractInvoiceFromRow(row) {
+    const anchors = row.querySelectorAll('a[href*="/personal/documents/"]');
+    for (const a of anchors) {
+      const candidates = [
+        a.getAttribute("data-original-title") || "",
+        a.getAttribute("title") || "",
+      ];
+      for (const c of candidates) {
+        // The string is URL-encoded (%20, %28 …). Match on the raw value —
+        // МПр and digits stay intact through encoding so regex works
+        // without a full decodeURIComponent.
+        const m = INVOICE_RE.exec(c);
+        if (m) return m[0];
+      }
+    }
+    return null;
   }
 
   function decoratePage(root = document.body) {
@@ -108,13 +136,14 @@
     panel.append(h, b);
   }
 
-  function renderTable(panel, orderNumber, body) {
+  function renderTable(panel, orderNumber, body, invoiceNumber) {
     panel.innerHTML = "";
     const header = document.createElement("div");
     header.className = "autoload-ext-header";
     const itemCount = (body.items || []).length;
+    const invoiceTag = invoiceNumber ? ` (УПД ${invoiceNumber})` : "";
     header.textContent =
-      `Заказ МПр${orderNumber} — ${itemCount} ${pluralRus(itemCount, ["позиция","позиции","позиций"])} | итого ${body.total_price} ₽`;
+      `Заказ МПр${orderNumber}${invoiceTag} — ${itemCount} ${pluralRus(itemCount, ["позиция","позиции","позиций"])} | итого ${body.total_price} ₽`;
     panel.appendChild(header);
 
     const table = document.createElement("table");
@@ -154,11 +183,13 @@
       status.className = "autoload-ext-queue-status";
       queueRow.appendChild(status);
       try {
+        const reqBody = { supplier: "mparts", identifier: mpartsId };
+        if (invoiceNumber) reqBody.incoming_number = invoiceNumber;
         const r = await fetch(API_QUEUE_ADD, {
           method: "POST",
           credentials: "omit",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ supplier: "mparts", identifier: mpartsId }),
+          body: JSON.stringify(reqBody),
         });
         const ok = r.status === 200;
         const data = await r.json().catch(() => ({}));
@@ -271,12 +302,16 @@
     return forms[2];
   }
 
-  async function handleClick(btn, orderNumber) {
+  async function handleClick(btn, orderNumber, row) {
     closePanel();
     const panel = buildPanel();
     anchorPanel(panel, btn);
     document.body.appendChild(panel);
     renderLoading(panel, orderNumber);
+
+    // Extract invoice number from the same row's УПД link if present.
+    // Null is fine — backend falls back to the order_number as Вх. номер.
+    const invoiceNumber = row ? extractInvoiceFromRow(row) : null;
 
     const url = `${API_LOOKUP_BASE}/${encodeURIComponent(orderNumber)}`;
 
@@ -287,7 +322,7 @@
       try { body = JSON.parse(text); } catch { body = null; }
 
       if (resp.status === 200 && body) {
-        renderTable(panel, orderNumber, body);
+        renderTable(panel, orderNumber, body, invoiceNumber);
         return;
       }
       if (resp.status === 404 && body) {
