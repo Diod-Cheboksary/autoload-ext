@@ -11,6 +11,11 @@
 (function () {
   "use strict";
 
+  // 6-12 digits on purpose, WIDER than the backend's validate_partkom_identifier
+  // (8-10): a header row that fails this match would silently attribute its
+  // tracking icons to the PREVIOUS order (data corruption); an out-of-range
+  // identifier sent to the backend just 422s the whole atomic batch (visible,
+  // safe). Wide match + loud server-side reject is the right failure mode.
   const UAK_RE = /(?:№\s*)?УАК(\d{6,12})/;
   const UUID_RE = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
 
