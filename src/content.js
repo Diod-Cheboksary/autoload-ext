@@ -17,11 +17,35 @@
   const API_QUEUE_ADD = "https://e133.tech/barcode/api/receipts/queue";
   const API_QUEUE_GET = "https://e133.tech/barcode/api/receipts/queue";
   const API_QUEUE_ACCEPT = "https://e133.tech/barcode/api/receipts/queue/accept";
+  const API_ACCEPT_BATCH = "https://e133.tech/barcode/api/receipts/accept-batch";
   // Match "№ УАК55409720" or just "УАК55409720"; capture the digits.
   const UAK_RE = /(?:№\s*)?УАК(\d{6,12})/;
   const MARKER_CLASS = "autoload-ext-marker";
   const BUTTON_CLASS = "autoload-ext-btn";
   const PANEL_CLASS = "autoload-ext-panel";
+
+  // ---- Накладная доставки (группа заказов одного рейса) -------------------
+  //
+  // Карта «заказ → GUID рейса» строится по СЫРОМУ HTML страницы: Vue съедает
+  // <opt-tracking link="…"> после загрузки, поэтому живой DOM бесполезен.
+  // Кэш на 60с: пока пользователь принимает накладную, страница не меняется.
+  let groupsCache = { at: 0, groups: null };
+
+  async function fetchTrackingGroups() {
+    if (!/\/parts\/motion\.php/.test(location.pathname)) return null;
+    if (Date.now() - groupsCache.at < 60_000) return groupsCache.groups;
+    try {
+      const resp = await fetch(location.href, { credentials: "include" });
+      // Портал отдаёт windows-1251 — resp.text() даст кашу вместо УАК.
+      const buf = await resp.arrayBuffer();
+      const html = new TextDecoder("windows-1251").decode(buf);
+      const groups = AutoloadPartkomGroups.parsePartkomGroups(html);
+      groupsCache = { at: Date.now(), groups };
+      return groups;
+    } catch {
+      return null; // нет групп — нет кнопки, деградация тихая
+    }
+  }
 
   // ---- DOM utilities ----------------------------------------------------
 
@@ -252,6 +276,7 @@
     queueRow.appendChild(submitAll);
     panel.appendChild(queueRow);
     refreshQueueBadge(panel);
+    maybeAddBatchRow(panel, digits);
 
     const close = document.createElement("button");
     close.className = "autoload-ext-close";
@@ -260,6 +285,68 @@
     close.title = "Закрыть";
     close.addEventListener("click", closePanel);
     panel.appendChild(close);
+  }
+
+  /** Если заказ входит в накладную из ≥2 заказов (общий GUID рейса) —
+   *  предложить принять её целиком одной приходной. */
+  async function maybeAddBatchRow(panel, digits) {
+    const groups = await fetchTrackingGroups();
+    if (!groups) return;
+    const guid = groups.orderToGuid[digits];
+    if (!guid) return;
+    const orders = groups.guidToOrders[guid] || [];
+    if (orders.length < 2) return;
+    if (!panel.isConnected) return; // пользователь успел закрыть панель
+
+    const row = document.createElement("div");
+    row.className = "autoload-ext-queue-row";
+
+    const label = `Принять накладную (${orders.length} ${pluralRus(orders.length, ["заказ", "заказа", "заказов"])})`;
+    const btn = document.createElement("button");
+    btn.className = "autoload-ext-submit-all";
+    btn.type = "button";
+    btn.textContent = label;
+    btn.title = `Одна приходная в 1С из заказов: ${orders.map((o) => "УАК" + o).join(", ")}`;
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "Принимаем накладную…";
+      const status = document.createElement("div");
+      status.className = "autoload-ext-queue-status";
+      row.appendChild(status);
+      try {
+        const r = await fetch(API_ACCEPT_BATCH, {
+          method: "POST",
+          credentials: "omit",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            supplier: "partkom",
+            identifiers: orders,
+            group_key: guid,
+          }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (r.status === 200) {
+          status.textContent = data.replayed
+            ? `⚠ Уже принята ранее: ${data.document_id}`
+            : `✅ Приходная ${data.document_id} (${data.items_count} поз.)`;
+          status.classList.add("autoload-ext-queue-ok");
+          btn.remove();
+        } else {
+          status.textContent = `❌ ${data.detail || "ошибка"} (HTTP ${r.status})`;
+          status.classList.add("autoload-ext-queue-err");
+          btn.disabled = false;
+          btn.textContent = label;
+        }
+      } catch (e) {
+        status.textContent = `❌ нет связи: ${e instanceof Error ? e.message : e}`;
+        status.classList.add("autoload-ext-queue-err");
+        btn.disabled = false;
+        btn.textContent = label;
+      }
+    });
+
+    row.appendChild(btn);
+    panel.appendChild(row);
   }
 
   /** Fetch current queue count and display it in the panel header. */
