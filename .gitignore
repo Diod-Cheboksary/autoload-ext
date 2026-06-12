@@ -11,3 +11,6 @@ Thumbs.db
 *.crx
 *.pem
 *.zip
+
+# Dependencies
+node_modules/
