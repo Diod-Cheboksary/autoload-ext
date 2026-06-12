@@ -42,7 +42,8 @@
       if (!t) continue;
       // Static attr in PHP-rendered HTML; ':link' guard for a Vue-bound
       // variant ("'url'" — UUID extraction strips the inner quotes).
-      const guid = extractGuid(t.getAttribute("link") || t.getAttribute(":link"));
+      // ?? not ||: an explicit link="" must not silently fall through to :link.
+      const guid = extractGuid(t.getAttribute("link") ?? t.getAttribute(":link"));
       if (guid && !(currentOrder in orderToGuid)) {
         orderToGuid[currentOrder] = guid;
         insertionOrder.push(currentOrder);
