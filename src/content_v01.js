@@ -179,41 +179,27 @@
     add.addEventListener("click", async () => {
       add.disabled = true;
       add.textContent = "Добавляем…";
-      const status = document.createElement("div");
-      status.className = "autoload-ext-queue-status";
-      queueRow.appendChild(status);
-      try {
-        const reqBody = { supplier: "mparts", identifier: mpartsId };
-        if (invoiceNumber) reqBody.incoming_number = invoiceNumber;
-        const r = await fetch(API_QUEUE_ADD, {
-          method: "POST",
-          credentials: "omit",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(reqBody),
-        });
-        const ok = r.status === 200;
-        const data = await r.json().catch(() => ({}));
-        if (ok) {
-          status.textContent = data.added
-            ? "✅ Добавлено в очередь"
-            : "⚠ Уже в очереди";
-          status.classList.add(data.added
-            ? "autoload-ext-queue-ok"
-            : "autoload-ext-queue-warn");
-          add.remove();
-          refreshQueueBadge(panel);
-        } else {
-          status.textContent =
-            `❌ ${data.detail || "ошибка"} (HTTP ${r.status})`;
-          status.classList.add("autoload-ext-queue-err");
-          add.disabled = false;
-          add.textContent = "Добавить в очередь";
-        }
-      } catch (e) {
-        status.textContent = `❌ нет связи: ${e instanceof Error ? e.message : e}`;
-        status.classList.add("autoload-ext-queue-err");
+      const statusEl = document.createElement("div");
+      statusEl.className = "autoload-ext-queue-status";
+      queueRow.appendChild(statusEl);
+      const reqBody = { supplier: "mparts", identifier: mpartsId };
+      if (invoiceNumber) reqBody.incoming_number = invoiceNumber;
+      const { status, body } = await AutoloadApi.apiRequest("POST", API_QUEUE_ADD, reqBody);
+      const data = body || {};
+      if (status === 200) {
+        statusEl.textContent = data.added ? "✅ Добавлено в очередь" : "⚠ Уже в очереди";
+        statusEl.classList.add(data.added ? "autoload-ext-queue-ok" : "autoload-ext-queue-warn");
+        add.remove();
+        refreshQueueBadge(panel);
+      } else {
+        statusEl.textContent = status === 401
+          ? "❌ войдите в /barcode/ (кнопка снизу справа)"
+          : status === 0 ? "❌ нет связи с сервером"
+          : `❌ ${data.detail || "ошибка"} (HTTP ${status})`;
+        statusEl.classList.add("autoload-ext-queue-err");
         add.disabled = false;
         add.textContent = "Добавить в очередь";
+        if (status === 401) AutoloadApi.openLogin();
       }
     });
 
@@ -228,34 +214,28 @@
       results.className = "autoload-ext-batch-results";
       queueRow.appendChild(results);
       try {
-        const r = await fetch(API_QUEUE_ACCEPT, {
-          method: "POST", credentials: "omit",
-        });
-        const data = await r.json().catch(() => ({}));
-        if (r.status === 200 && data.results) {
+        const { status, body } = await AutoloadApi.apiRequest("POST", API_QUEUE_ACCEPT);
+        const data = body || {};
+        if (status === 200 && data.results) {
           results.innerHTML =
             `<div><strong>Результаты:</strong> успешно ${data.succeeded}, ошибок ${data.failed}, осталось ${data.remaining}</div>`;
           const list = document.createElement("ul");
           for (const item of data.results) {
             const li = document.createElement("li");
-            if (item.ok) {
-              li.textContent = `✅ ${item.identifier} → ${item.document_id}`;
-              li.classList.add("autoload-ext-batch-ok");
-            } else {
-              li.textContent = `❌ ${item.identifier}: ${item.error_kind} — ${item.error_detail}`;
-              li.classList.add("autoload-ext-batch-err");
-            }
+            if (item.ok) { li.textContent = `✅ ${item.identifier} → ${item.document_id}`; li.classList.add("autoload-ext-batch-ok"); }
+            else { li.textContent = `❌ ${item.identifier}: ${item.error_kind} — ${item.error_detail}`; li.classList.add("autoload-ext-batch-err"); }
             list.appendChild(li);
           }
           results.appendChild(list);
           refreshQueueBadge(panel);
+        } else if (status === 401) {
+          results.textContent = "❌ войдите в /barcode/ (кнопка снизу справа)";
+          results.classList.add("autoload-ext-queue-err");
+          AutoloadApi.openLogin();
         } else {
-          results.textContent = `❌ HTTP ${r.status}: ${data.detail || "ошибка"}`;
+          results.textContent = status === 0 ? "❌ нет связи с сервером" : `❌ HTTP ${status}: ${data.detail || "ошибка"}`;
           results.classList.add("autoload-ext-queue-err");
         }
-      } catch (e) {
-        results.textContent = `❌ нет связи: ${e instanceof Error ? e.message : e}`;
-        results.classList.add("autoload-ext-queue-err");
       } finally {
         submitAll.disabled = false;
         submitAll.textContent = "Принять все в 1С";
@@ -277,20 +257,17 @@
   }
 
   async function refreshQueueBadge(panel) {
-    try {
-      const r = await fetch(API_QUEUE_GET, { credentials: "omit" });
-      if (!r.ok) return;
-      const data = await r.json();
-      const header = panel.querySelector(".autoload-ext-header");
-      if (!header) return;
-      let badge = header.querySelector(".autoload-ext-queue-badge");
-      if (!badge) {
-        badge = document.createElement("span");
-        badge.className = "autoload-ext-queue-badge";
-        header.appendChild(badge);
-      }
-      badge.textContent = ` | в очереди: ${data.count}`;
-    } catch { /* silent — UI degrades gracefully */ }
+    const { status, body } = await AutoloadApi.apiRequest("GET", API_QUEUE_GET);
+    if (status !== 200 || !body) return;
+    const header = panel.querySelector(".autoload-ext-header");
+    if (!header) return;
+    let badge = header.querySelector(".autoload-ext-queue-badge");
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "autoload-ext-queue-badge";
+      header.appendChild(badge);
+    }
+    badge.textContent = ` | в очереди: ${body.count}`;
   }
 
   function pluralRus(n, forms) {
@@ -314,42 +291,24 @@
     const invoiceNumber = row ? extractInvoiceFromRow(row) : null;
 
     const url = `${API_LOOKUP_BASE}/${encodeURIComponent(orderNumber)}`;
+    const { status, body } = await AutoloadApi.apiRequest("GET", url);
 
-    try {
-      const resp = await fetch(url, { credentials: "omit" });
-      const text = await resp.text();
-      let body;
-      try { body = JSON.parse(text); } catch { body = null; }
-
-      if (resp.status === 200 && body) {
-        renderTable(panel, orderNumber, body, invoiceNumber);
-        return;
-      }
-      if (resp.status === 404 && body) {
-        renderError(panel, orderNumber,
-          body.detail || "не найдено");
-        return;
-      }
-      if (resp.status === 502 && body) {
-        renderError(panel, orderNumber,
-          body.detail || "сбой API МПартс");
-        return;
-      }
-      if (resp.status === 422 && body) {
-        renderError(panel, orderNumber,
-          body.detail || "неверный формат");
-        return;
-      }
-      renderError(panel, orderNumber, `HTTP ${resp.status}`);
-    } catch (e) {
-      renderError(panel, orderNumber,
-        e instanceof Error ? e.message : String(e));
+    if (status === 200 && body) { renderTable(panel, orderNumber, body, invoiceNumber); return; }
+    if (status === 401) {
+      renderError(panel, orderNumber, "войдите в /barcode/ (кнопка проверки входа снизу справа)");
+      AutoloadApi.openLogin();
+      return;
     }
+    if (status === 404 && body) { renderError(panel, orderNumber, body.detail || "не найдено"); return; }
+    if (status === 502 && body) { renderError(panel, orderNumber, body.detail || "сбой API МПартс"); return; }
+    if (status === 422 && body) { renderError(panel, orderNumber, body.detail || "неверный формат"); return; }
+    renderError(panel, orderNumber, status === 0 ? "нет связи с сервером" : `HTTP ${status}`);
   }
 
   // ---- Bootstrap + observer --------------------------------------------
 
   decoratePage();
+  if (globalThis.AutoloadApi) AutoloadApi.injectLoginButton();
 
   document.addEventListener("click", (ev) => {
     const t = ev.target;
