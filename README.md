@@ -10,6 +10,19 @@ This sidesteps the problem that PartKom's printed waybill barcodes don't
 correspond to any API-visible identifier — when the user is already
 looking at the LK, the order number is right there on the screen.
 
+## Вход через Authentik (с v0.6.0)
+
+Бэкенд `/barcode/` теперь за Authentik forward-auth. Чтобы расширение работало:
+
+1. Войдите в <https://e133.tech/barcode/> под Authentik-аккаунтом из группы
+   `autoload-users`. Без входа API отдаёт 401.
+2. Запросы к API идут не из страницы поставщика (это был бы cross-site без куки),
+   а из **service worker** расширения (`src/background.js`) с `credentials:"include"` —
+   он переиспользует ту же сессионную куку `e133.tech` как first-party, поэтому
+   отдельные токены/OAuth не нужны.
+3. Внизу справа на странице поставщика есть кнопка **«Autoload: проверить вход»** —
+   показывает статус и при необходимости открывает вкладку логина.
+
 ## Install (unpacked, for internal use)
 
 1. Clone this repo:
