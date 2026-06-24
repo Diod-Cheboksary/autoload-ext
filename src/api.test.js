@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiRequest, whoami } from "./api.js";
+import { apiRequest, safeInt, whoami } from "./api.js";
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -39,5 +39,30 @@ describe("whoami", () => {
     const r = await whoami();
     expect(r.ok).toBe(false);
     expect(r.status).toBe(401);
+  });
+});
+
+describe("safeInt", () => {
+  it("returns finite numbers unchanged", () => {
+    expect(safeInt(0)).toBe(0);
+    expect(safeInt(42)).toBe(42);
+  });
+
+  it("coerces numeric strings", () => {
+    expect(safeInt("7")).toBe(7);
+  });
+
+  it("returns 0 for HTML/script payloads (XSS guard)", () => {
+    expect(safeInt('<img src=x onerror=alert(1)>')).toBe(0);
+    expect(safeInt('<script>alert(1)</script>')).toBe(0);
+  });
+
+  it("returns 0 for non-numeric / non-finite / nullish", () => {
+    expect(safeInt(undefined)).toBe(0);
+    expect(safeInt(null)).toBe(0);
+    expect(safeInt(NaN)).toBe(0);
+    expect(safeInt(Infinity)).toBe(0);
+    expect(safeInt({})).toBe(0);
+    expect(safeInt("abc")).toBe(0);
   });
 });

@@ -230,8 +230,14 @@
         const { status, body } = await AutoloadApi.apiRequest("POST", API_QUEUE_ACCEPT);
         const data = body || {};
         if (status === 200 && data.results) {
-          results.innerHTML =
-            `<div><strong>Результаты:</strong> успешно ${data.succeeded}, ошибок ${data.failed}, осталось ${data.remaining}</div>`;
+          const summary = document.createElement("div");
+          const strong = document.createElement("strong");
+          strong.textContent = "Результаты:";
+          summary.appendChild(strong);
+          summary.appendChild(document.createTextNode(
+            ` успешно ${AutoloadApi.safeInt(data.succeeded)}, ошибок ${AutoloadApi.safeInt(data.failed)}, осталось ${AutoloadApi.safeInt(data.remaining)}`,
+          ));
+          results.appendChild(summary);
           const list = document.createElement("ul");
           for (const item of data.results) {
             const li = document.createElement("li");

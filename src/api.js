@@ -56,10 +56,18 @@
     document.body.appendChild(btn);
   }
 
+  /** Coerce an untrusted value (e.g. a count from the backend JSON) to a
+   *  finite number, or 0. Lets batch-result counts be rendered via textContent
+   *  instead of innerHTML — a compromised/MITM'd backend can't inject HTML. */
+  function safeInt(v) {
+    const n = typeof v === "number" ? v : Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+
   if (typeof globalThis !== "undefined") {
-    globalThis.AutoloadApi = { apiRequest, whoami, openLogin, injectLoginButton };
+    globalThis.AutoloadApi = { apiRequest, whoami, openLogin, injectLoginButton, safeInt };
   }
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { apiRequest, whoami, openLogin, injectLoginButton };
+    module.exports = { apiRequest, whoami, openLogin, injectLoginButton, safeInt };
   }
 })();
