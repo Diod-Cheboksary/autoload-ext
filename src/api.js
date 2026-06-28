@@ -9,6 +9,21 @@
   const API_WHOAMI = `${API_BASE}/whoami`;
   const LOGIN_URL = "https://e133.tech/barcode/";
 
+  // Бэк на 403 от резолва филиала (tg-auth-0kx) шлёт structured detail
+  // {code, detail, branches}. Нормализуем detail в СТРОКУ, чтобы все места показа
+  // (status_el.textContent = data.detail || "ошибка") отрисовали понятный текст,
+  // а не [object Object]. branch_selection_required = мультифилиал без выбора.
+  function normalizeBranchError(status, parsed) {
+    if (status !== 403 || !parsed || typeof parsed.detail !== "object" || !parsed.detail) {
+      return parsed;
+    }
+    const code = parsed.detail.code;
+    let msg = parsed.detail.detail || "доступ запрещён";
+    if (code === "branch_selection_required") msg = "выберите филиал в /barcode/";
+    else if (code === "no_branch") msg = "нет доступа к филиалу";
+    return Object.assign({}, parsed, { detail: msg });
+  }
+
   async function apiRequest(method, url, body) {
     let resp;
     try {
@@ -20,12 +35,19 @@
     if (resp.error && !resp.status) return { status: 0, body: null, error: resp.error };
     let parsed = null;
     try { parsed = JSON.parse(resp.text); } catch { parsed = null; }
-    return { status: resp.status, body: parsed };
+    return { status: resp.status, body: normalizeBranchError(resp.status, parsed) };
   }
 
   async function whoami() {
     const { status, body } = await apiRequest("GET", API_WHOAMI);
-    return { ok: status === 200 && !!body && body.authenticated === true, status, user: body && body.user };
+    return {
+      ok: status === 200 && !!body && body.authenticated === true,
+      status,
+      user: body && body.user,
+      // Активный филиал (мультифилиал → запомненный текущий) — показать оператору,
+      // куда уйдёт приходная. branch_name приоритетнее слага.
+      branch: body && (body.branch_name || body.branch),
+    };
   }
 
   function openLogin() {
@@ -44,10 +66,12 @@
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       btn.textContent = "Проверяю…";
-      const { ok, status, user } = await whoami();
+      const { ok, status, user, branch } = await whoami();
       btn.disabled = false;
       if (ok) {
-        btn.textContent = `Autoload: вход ОК (${user || "—"})`;
+        btn.textContent = branch
+          ? `Autoload: вход ОК (${user || "—"} · ${branch})`
+          : `Autoload: вход ОК (${user || "—"})`;
       } else {
         btn.textContent = "Autoload: войдите в /barcode/";
         if (status === 401 || status === 0) openLogin();

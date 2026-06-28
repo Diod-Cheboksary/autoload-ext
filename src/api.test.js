@@ -42,6 +42,50 @@ describe("whoami", () => {
   });
 });
 
+describe("403 branch resolution normalization (tg-auth-0kx)", () => {
+  it("403 branch_selection_required → понятная строка в detail", async () => {
+    vi.stubGlobal("chrome", { runtime: { sendMessage: vi.fn().mockResolvedValue({
+      status: 403, text: JSON.stringify({ detail: {
+        code: "branch_selection_required", detail: "нужен выбор",
+        branches: [{ slug: "prg" }, { slug: "nck" }] } }) }) } });
+    const r = await apiRequest("GET", "u");
+    expect(r.status).toBe(403);
+    expect(typeof r.body.detail).toBe("string");
+    expect(r.body.detail).toMatch(/выберите филиал/i);
+  });
+
+  it("403 no_branch → сообщение про доступ", async () => {
+    vi.stubGlobal("chrome", { runtime: { sendMessage: vi.fn().mockResolvedValue({
+      status: 403, text: JSON.stringify({ detail: { code: "no_branch", branches: [] } }) }) } });
+    const r = await apiRequest("GET", "u");
+    expect(r.body.detail).toMatch(/нет доступа/i);
+  });
+
+  it("не-403 ответ оставляет detail нетронутым", async () => {
+    vi.stubGlobal("chrome", { runtime: { sendMessage: vi.fn().mockResolvedValue({
+      status: 404, text: JSON.stringify({ detail: "не найдено" }) }) } });
+    const r = await apiRequest("GET", "u");
+    expect(r.body.detail).toBe("не найдено");
+  });
+});
+
+describe("whoami branch (tg-auth-0kx)", () => {
+  it("отдаёт активный филиал (branch_name приоритетнее slug)", async () => {
+    vi.stubGlobal("chrome", { runtime: { sendMessage: vi.fn().mockResolvedValue({
+      status: 200, text: JSON.stringify({ authenticated: true, user: "a@b",
+        branch: "nck", branch_name: "НЧК" }) }) } });
+    const r = await whoami();
+    expect(r.branch).toBe("НЧК");
+  });
+
+  it("branch = undefined когда филиал не определён", async () => {
+    vi.stubGlobal("chrome", { runtime: { sendMessage: vi.fn().mockResolvedValue({
+      status: 200, text: JSON.stringify({ authenticated: true, user: "a@b" }) }) } });
+    const r = await whoami();
+    expect(r.branch).toBeFalsy();
+  });
+});
+
 describe("safeInt", () => {
   it("returns finite numbers unchanged", () => {
     expect(safeInt(0)).toBe(0);

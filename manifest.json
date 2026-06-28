@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Autoload — quick lookup (PartKom + MParts)",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Injects a 📋 button next to supplier order numbers (PartKom УАК… on b2b.part-kom.ru, MParts on v01.ru) and fetches the parts table via the autoload backend. Includes 'Добавить в очередь' + 'Принять все в 1С' for the collect-then-batch receipt flow shared with the /barcode/ web UI.; принятие накладной целиком (все заказы одного рейса доставки)",
   "permissions": [],
   "host_permissions": [
